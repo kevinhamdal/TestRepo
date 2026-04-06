@@ -1,0 +1,147 @@
+Dim SpacesRegEx As Object
+    Set SpacesRegEx = New RegExp
+        With SpacesRegEx
+        .Pattern = "[\s]+"
+        .Global = True
+        .MultiLine = True
+    End With
+    
+    Dim TabsDelimRegExp As Object
+    Set TabsDelimRegExp = New RegExp
+    With TabsDelimRegExp
+        .Pattern = ",+|\s+y\s+|\s+"
+        .Pattern = "[,\s]+"
+        .Global = True
+        .MultiLine = True
+    End With
+    
+    Dim ValidRolRegExp As Object
+    Set ValidRolRegExp = New RegExp
+    With ValidRolRegExp
+        .Pattern = "^\D{1,2}\d{1,2}\.\d{1,2}"
+        .Global = True
+        .MultiLine = True
+    End With
+    
+    Dim ValidityRegExp As Object
+    Set ValidityRegExp = New RegExp
+    With ValidityRegExp
+        .Pattern = "\d+(?:\s)+(?:mes(?:es)?|(año))(?:\s)+\(Roles(?:\s)+(No(?:\s)+)?Sensitivos\)"
+        .Global = True
+        .MultiLine = True
+    End With
+      
+    Dim FoundedTabslist As Object: Set FoundedTabslist = CreateObject("System.Collections.ArrayList")
+    Dim WrongRolTabslist As Object: Set WrongRolTabslist = CreateObject("System.Collections.ArrayList")
+    Dim NOFoundedTabslist As Object: Set NOFoundedTabslist = CreateObject("System.Collections.ArrayList")
+    Dim MtvsRechazoList As Object: Set MtvsRechazoList = CreateObject("System.Collections.ArrayList")
+    Dim WrongRolsList As Object: Set WrongRolsList = CreateObject("System.Collections.ArrayList")
+    
+    Dim FoundedCell As Range
+    Dim FoundedRolCell As Range
+    
+    Dim ValidRegExpMatches As Object
+    
+    Dim RolString As String
+    Dim TableString As String
+    Dim ValidityString As String
+    
+    Dim FoundTabsString As String
+    Dim WrongRolTabsString As String
+    Dim NOFoundTabsString As String
+    Dim WrongRolsStr As String
+    Dim WsNameStr As String
+    Dim MsgValidity As String
+    Dim MtvsRechazoStr As String
+    
+    Dim lineasTexto As Integer
+
+    ' DIRECCION Y NOMBRE DE TABLAS
+    '--------------------------------------------------------------------------------------
+    SourcePath = ThisWorkbook.FullName
+    Set wbSource = Workbooks.Open(SourcePath)
+    Set wsSource = wbSource.Sheets("Roles-Tables Datoteca")
+    Set tbSource = wsSource.ListObjects("Tabla1")
+    '--------------------------------------------------------------------------------------
+
+    'BUSQUEDA DE TABLAS
+    suma = 0
+    For Each Item In Tableslist
+        Set FoundedCell = tbSource.DataBodyRange.Find(Item)
+        If Not FoundedCell Is Nothing Then
+            '-----------------------------------------------------------
+            FoundedCell.Activate
+            Set FoundedRolCell = FoundedCell.Offset(0, -2)
+            SideCellValue = LCase(Trim((FoundedRolCell.Value)))
+            '-----------------------------------------------------------
+            If SideCellValue = RolString Then
+                FoundedTabslist.Add Item
+                suma = suma + 1
+            Else
+                'Encontramos tabla pero la celda de alado no tiene el rol
+                WrongRolTabslist.Add Item
+                WrongRolsList.Add SideCellValue
+            End If
+        Else
+            NOFoundedTabslist.Add Item
+        End If
+    Next Item
+    
+    porcent = (suma / NumberOfTables) * 100
+    
+    WrongRolsStr = Join(WrongRolsList.ToArray, ",")
+    WrongRolTabsString = Join(WrongRolTabslist.ToArray, ",")
+    
+    If porcent < 50 Then
+        MtvsRechazoList.Add "Motivo del rechazo: El rol no corresponde a la(s) tabla(s) que se solicita acceso. La(s) tabla(s) " & WrongRolTabsString & " corresponde(n) a rol(es) " & WrongRolsStr
+    End If
+        
+    Set ValidRegExpMatches = ValidityRegExp.Execute(ValidityString)
+    
+    If Not IsEmpty(ValidityRegExp.Execute(ValidityString)) Then
+        Checker1 = ValidRegExpMatches(0).SubMatches(0)
+        Checker2 = ValidRegExpMatches(0).SubMatches(1)
+    'CHecker1 empty APRUEBA
+    'Checker1 NO empty &  Cheker2 NO empty APRUEBA
+    'Checker1 NO empty & Cheker2 empty RECHAZA
+        If IsEmpty(Checker1) Then
+            'Aprueba
+            MsgValidity = "La vigencia es correcta"
+        Else
+            If IsEmpty(Checker2) Then
+                'Rechaza
+                MsgValidity = "Vigencia Incorrecta"
+                MtvsRechazoList.Add "Motivo del rechazo: Favor de solicitar la vigencia del acceso a las tablas por 6 meses"
+            Else
+                MsgValidity = "La vigencia es correcta"
+                'Aprueba
+            'MsgBox "Vigencia no valida, copie y pegue la cadena de vigencia directamente de OneAproval"
+            End If
+        End If
+    Else
+        MsgValidity = "Vigencia no introducida"
+        'que pasa??
+    End If
+    
+    If MtvsRechazoList.Count = 0 Then
+        MtvsRechazoList.Add "Aprobado"
+    End If
+    
+    FoundTabsString = Join(FoundedTabslist.ToArray, vbNewLine)
+    WrongRolTabsString = Join(WrongRolTabslist.ToArray, vbNewLine)
+    NOFoundTabsString = Join(NOFoundedTabslist.ToArray, vbNewLine)
+    MtvsRechazoStr = Join(MtvsRechazoList.ToArray, vbNewLine)
+    
+    FinalMsg.TxtBox1.Caption = "El porcentaje de tablas encontrado es: " & porcent & "% " & vbNewLine _
+    & FoundTabsString & vbNewLine _
+    & vbNewLine _
+    & "No pertecen a este rol: " & vbNewLine _
+    & WrongRolTabsString & vbNewLine _
+    & vbNewLine _
+    & "No encontradas: " & vbNewLine _
+    & NOFoundTabsString & vbNewLine _
+    & vbNewLine _
+    & MsgValidity & vbNewLine _
+    & vbNewLine _
+    & "RESPUESTA SUGERIDA:"
+    '& MtvsRechazoStr
